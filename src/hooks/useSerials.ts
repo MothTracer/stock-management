@@ -6,10 +6,12 @@ export interface ProductSerial {
   id: string;
   product_id: string;
   serial_code: string;
-  status: 'Ready' | 'Borrowed' | 'Repair' | 'Missing';
-  sticker_status: 'Pending' | 'Done';
+  status: string; // เปลี่ยนเป็น string เพื่อรองรับค่าไทยได้อิสระ
+  sticker_status: string;
   sticker_date: string | null;
   sticker_image_url: string | null;
+  image_url: string | null; // เพิ่ม: รูปสินค้าจริง
+  notes: string | null;     // เพิ่ม: โน๊ต
   location_id: string | null;
   created_at: string;
   products?: {
@@ -25,10 +27,12 @@ export interface ProductSerial {
 
 export interface UpdateSerialInput {
   id: string;
-  status?: 'Ready' | 'Borrowed' | 'Repair' | 'Missing';
-  sticker_status?: 'Pending' | 'Done';
+  status?: string;
+  sticker_status?: string;
   sticker_date?: string | null;
   sticker_image_url?: string | null;
+  image_url?: string | null; // เพิ่ม
+  notes?: string | null;     // เพิ่ม
   location_id?: string | null;
 }
 
@@ -43,7 +47,7 @@ export function useSerials(search?: string) {
           products (name, p_id, category),
           locations (name, building)
         `)
-        .order('created_at', { ascending: false });
+        .order('serial_code', { ascending: true }); // เรียงตามรหัสจะหาง่ายกว่า
       
       if (search) {
         query = query.or(`serial_code.ilike.%${search}%,products.name.ilike.%${search}%`);
@@ -67,7 +71,7 @@ export function useAvailableSerials() {
           *,
           products (name, p_id, category)
         `)
-        .eq('status', 'Ready')
+        .or('status.eq.Ready,status.eq.พร้อมใช้') // รองรับทั้งไทยและอังกฤษ
         .order('serial_code', { ascending: true });
       
       if (error) throw error;
@@ -94,7 +98,7 @@ export function useUpdateSerial() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['serials'] });
-      toast.success('อัปเดตข้อมูลสำเร็จ');
+      toast.success('บันทึกข้อมูลเรียบร้อย');
     },
     onError: (error: Error) => {
       toast.error(`เกิดข้อผิดพลาด: ${error.message}`);
