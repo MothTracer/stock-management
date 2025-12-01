@@ -8,8 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, Users, Camera, Mail, Phone, MapPin } from "lucide-react";
 import { useEmployees, useCreateEmployee, useDeleteEmployee, useDepartments } from "@/hooks/useMasterData";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export default function Employees() {
   const { data: employees, isLoading } = useEmployees();
@@ -18,24 +22,70 @@ export default function Employees() {
   const deleteEmployee = useDeleteEmployee();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
   const [formData, setFormData] = useState({
-    name: "",
     emp_code: "",
-    department_id: "",
+    name: "",
+    nickname: "",
+    gender: "",
+    email: "",
     tel: "",
+    location: "",
+    department_id: "",
+    image_url: "",
   });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `emp_${Date.now()}.${fileExt}`;
+      const filePath = `employees/${fileName}`; // แนะนำให้สร้าง folder employees ใน bucket asset-images หรือ bucket ใหม่
+
+      const { error: uploadError } = await supabase.storage
+        .from('asset-images') // ใช้ bucket เดิมที่มี
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('asset-images')
+        .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, image_url: publicUrl }));
+      toast.success('อัปโหลดรูปภาพสำเร็จ');
+    } catch (error) {
+      console.error(error);
+      toast.error('อัปโหลดรูปภาพไม่สำเร็จ');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     await createEmployee.mutateAsync({
-      name: formData.name,
       emp_code: formData.emp_code,
-      department_id: formData.department_id || undefined,
+      name: formData.name,
+      nickname: formData.nickname || undefined,
+      gender: formData.gender || undefined,
+      email: formData.email || undefined,
       tel: formData.tel || undefined,
+      location: formData.location || undefined,
+      department_id: formData.department_id || undefined,
+      image_url: formData.image_url || undefined,
     });
 
-    setFormData({ name: "", emp_code: "", department_id: "", tel: "" });
+    // Reset Form
+    setFormData({ 
+      emp_code: "", name: "", nickname: "", gender: "", 
+      email: "", tel: "", location: "", department_id: "", image_url: "" 
+    });
     setIsDialogOpen(false);
   };
 
@@ -45,7 +95,7 @@ export default function Employees() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">
-            จัดการข้อมูลพนักงานในระบบ
+            จัดการข้อมูลพนักงาน รายละเอียดการติดต่อ และสถานที่ทำงาน
           </p>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -54,66 +104,145 @@ export default function Employees() {
                 เพิ่มพนักงาน
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>เพิ่มพนักงานใหม่</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="emp_code">รหัสพนักงาน</Label>
-                  <Input
-                    id="emp_code"
-                    placeholder="เช่น EMP-001"
-                    value={formData.emp_code}
-                    onChange={(e) => setFormData(prev => ({ ...prev, emp_code: e.target.value }))}
-                    required
-                  />
-                </div>
+              <form onSubmit={handleSubmit} className="space-y-6 py-4">
                 
-                <div className="space-y-2">
-                  <Label htmlFor="name">ชื่อ-นามสกุล</Label>
-                  <Input
-                    id="name"
-                    placeholder="ชื่อ-นามสกุล"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    required
-                  />
+                {/* Image Upload Section */}
+                <div className="flex flex-col items-center gap-4">
+                  <Avatar className="h-24 w-24 border-2 border-dashed border-gray-200">
+                    <AvatarImage src={formData.image_url} className="object-cover" />
+                    <AvatarFallback className="bg-muted">
+                      <Camera className="h-8 w-8 text-muted-foreground" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      type="file" 
+                      accept="image/*" 
+                      className="w-full max-w-[250px]"
+                      onChange={handleImageUpload}
+                      disabled={isUploading}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="department">แผนก</Label>
-                  <Select
-                    value={formData.department_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="เลือกแผนก" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments?.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Column 1 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="emp_code">รหัสพนักงาน <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="emp_code"
+                      placeholder="เช่น EMP-001"
+                      value={formData.emp_code}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emp_code: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="department">แผนก</Label>
+                    <Select
+                      value={formData.department_id}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="เลือกแผนก" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments?.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="name">ชื่อ-นามสกุล <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="name"
+                      placeholder="ระบุชื่อเต็ม"
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="nickname">ชื่อเล่น</Label>
+                    <Input
+                      id="nickname"
+                      placeholder="ระบุชื่อเล่น"
+                      value={formData.nickname}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="gender">เพศ</Label>
+                    <Select
+                      value={formData.gender}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, gender: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="เลือกเพศ" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ชาย">ชาย</SelectItem>
+                        <SelectItem value="หญิง">หญิง</SelectItem>
+                        <SelectItem value="อื่นๆ">อื่นๆ</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="location">สถานที่นั่งทำงาน</Label>
+                    <Select
+                      value={formData.location}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="ระบุชั้น" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ชั้น 1">ชั้น 1</SelectItem>
+                        <SelectItem value="ชั้น 2">ชั้น 2</SelectItem>
+                        <SelectItem value="ชั้น 3">ชั้น 3</SelectItem>
+                        <SelectItem value="ชั้น 4">ชั้น 4</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="example@company.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tel">เบอร์โทร</Label>
+                    <Input
+                      id="tel"
+                      placeholder="0xx-xxx-xxxx"
+                      value={formData.tel}
+                      onChange={(e) => setFormData(prev => ({ ...prev, tel: e.target.value }))}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tel">เบอร์โทร</Label>
-                  <Input
-                    id="tel"
-                    placeholder="เบอร์โทรศัพท์"
-                    value={formData.tel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, tel: e.target.value }))}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
+                <div className="flex justify-end gap-2 pt-4 border-t">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     ยกเลิก
                   </Button>
-                  <Button type="submit" disabled={createEmployee.isPending}>
-                    {createEmployee.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
+                  <Button type="submit" disabled={createEmployee.isPending || isUploading}>
+                    {createEmployee.isPending ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
                   </Button>
                 </div>
               </form>
@@ -134,32 +263,69 @@ export default function Employees() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>รหัสพนักงาน</TableHead>
-                    <TableHead>ชื่อ-นามสกุล</TableHead>
-                    <TableHead>แผนก</TableHead>
-                    <TableHead>เบอร์โทร</TableHead>
+                    <TableHead className="w-[80px]">รูป</TableHead>
+                    <TableHead>รหัส / ชื่อ</TableHead>
+                    <TableHead>ข้อมูลส่วนตัว</TableHead>
+                    <TableHead>การติดต่อ</TableHead>
+                    <TableHead>ตำแหน่งงาน</TableHead>
                     <TableHead className="text-right">จัดการ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {employees.map((emp) => (
                     <TableRow key={emp.id}>
-                      <TableCell className="font-mono text-sm font-medium">
-                        {emp.emp_code}
+                      <TableCell>
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={emp.image_url || undefined} alt={emp.name} />
+                          <AvatarFallback>{emp.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
                       </TableCell>
-                      <TableCell className="font-medium">{emp.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {emp.departments?.name || '-'}
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-mono text-xs text-muted-foreground">{emp.emp_code}</span>
+                          <span className="font-medium">{emp.name}</span>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {emp.tel || '-'}
+                      <TableCell>
+                        <div className="text-sm">
+                          {emp.nickname && <Badge variant="secondary" className="mr-2">{emp.nickname}</Badge>}
+                          <span className="text-muted-foreground text-xs">{emp.gender}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                          {emp.email && (
+                            <div className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" /> {emp.email}
+                            </div>
+                          )}
+                          {emp.tel && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" /> {emp.tel}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-sm">
+                          <span>{emp.departments?.name || '-'}</span>
+                          {emp.location && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" /> {emp.location}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => deleteEmployee.mutate(emp.id)}
+                          onClick={() => {
+                            if(confirm(`ต้องการลบพนักงาน ${emp.name} ใช่หรือไม่?`)) {
+                              deleteEmployee.mutate(emp.id);
+                            }
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

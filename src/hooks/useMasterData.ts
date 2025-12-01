@@ -143,6 +143,11 @@ export function useDeleteLocation() {
 export interface Employee {
   id: string;
   name: string;
+  nickname?: string | null; // เพิ่ม
+  gender?: string | null;   // เพิ่ม
+  image_url?: string | null; // เพิ่ม
+  email?: string | null;    // เพิ่ม
+  location?: string | null; // เพิ่ม
   emp_code: string;
   department_id: string | null;
   tel: string | null;
@@ -154,6 +159,11 @@ export interface Employee {
 
 export interface CreateEmployeeInput {
   name: string;
+  nickname?: string;
+  gender?: string;
+  image_url?: string;
+  email?: string;
+  location?: string;
   emp_code: string;
   department_id?: string;
   tel?: string;
@@ -169,7 +179,7 @@ export function useEmployees() {
           *,
           departments (name)
         `)
-        .order('name');
+        .order('emp_code'); // เรียงตามรหัสพนักงานน่าจะดูง่ายกว่าครับ
       
       if (error) throw error;
       return data as Employee[];

@@ -1,4 +1,3 @@
-// ... imports เดิม ...
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -7,15 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Package, Trash2, Image as ImageIcon, X, Pencil, Box } from "lucide-react"; // เพิ่ม Icon Box
+import { Plus, Package, Trash2, Image as ImageIcon, X, Pencil, Box } from "lucide-react";
 import { useProducts, useDeleteProduct, useUpdateProduct, useCreateProduct, Product } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge"; // เพิ่ม Badge
+import { Badge } from "@/components/ui/badge";
 
-// ... categories constant เดิม ...
 const categories = [
   "ไอที/อิเล็กทรอนิกส์ (IT)",
   "เฟอร์นิเจอร์ (FR)",
@@ -30,7 +28,6 @@ const categories = [
 ];
 
 export default function Products() {
-  // ... hooks และ states เดิม ...
   const { data: products, isLoading } = useProducts();
   const createProductHook = useCreateProduct();
   const updateProductHook = useUpdateProduct();
@@ -42,6 +39,15 @@ export default function Products() {
   
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // --- ส่วนที่เพิ่ม: State สำหรับ Filter ---
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+
+  // --- ส่วนที่เพิ่ม: Logic กรองสินค้า ---
+  const filteredProducts = products?.filter((product) => {
+    if (selectedCategory === "All") return true;
+    return product.category === selectedCategory;
+  });
 
   const [formData, setFormData] = useState({
     p_id: "",
@@ -57,13 +63,11 @@ export default function Products() {
     initial_quantity: "1",
   });
 
-  // ... Options states และ functions เดิม (handleAddOption, handleRemoveOption, etc.) ...
   const [nameOptions, setNameOptions] = useState(["AIO", "Notebook", "Mouse", "Monitor"]);
   const [modelOptions, setModelOptions] = useState(["Gen 1", "Gen 2", "Gen 3"]);
   const [brandOptions, setBrandOptions] = useState(["Dell", "HP", "Lenovo", "Asus", "Acer", "Apple"]);
   const [unitOptions, setUnitOptions] = useState(["Piece", "Box", "Set", "Unit"]);
 
-  // ... openAddDialog, openEditDialog functions เดิม ...
   const openAddDialog = () => {
     setIsEditing(false);
     setSelectedProduct(null);
@@ -97,18 +101,16 @@ export default function Products() {
       price: product.price.toString(),
       unit: product.unit,
       image_url: product.image_url || "",
-      initial_quantity: (product.stock_total || 0).toString(), // ใช้ stock_total แทน quantity เดิม
+      initial_quantity: (product.stock_total || 0).toString(),
     });
     setIsDialogOpen(true);
   };
 
-  // ... getCategoryPrefix เดิม ...
   const getCategoryPrefix = (category: string) => {
     const match = category.match(/\(([^)]+)\)/);
     return match ? match[1].toUpperCase() : "GEN";
   };
 
-  // *** แก้ไข function generateSku ให้เป็น 4 หลัก ***
   const generateSku = async (category: string) => {
     setFormData(prev => ({ ...prev, category }));
     
@@ -133,7 +135,6 @@ export default function Products() {
       const lastNumber = match ? parseInt(match[1], 10) : 0;
       const nextNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
       
-      // เปลี่ยนตรงนี้: บังคับให้เป็น 4 หลัก (0001)
       const padLength = 4; 
       const nextSku = `${prefix}-${String(nextNumber).padStart(padLength, '0')}`;
 
@@ -150,8 +151,6 @@ export default function Products() {
     }
   };
 
-  // ... handleImageUpload, handleAddOption, handleRemoveOption, handleSelectOption, OptionChips, handleSubmit ...
-  // (ฟังก์ชันเหล่านี้ใช้ Logic เดิมได้เลย แต่ตอน handleSubmit มันจะไปเรียก hook ที่เราแก้ไว้แล้ว)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -245,7 +244,7 @@ export default function Products() {
       if (isEditing && selectedProduct) {
         await updateProductHook.mutateAsync({
           id: selectedProduct.id,
-          current_quantity: selectedProduct.stock_total || 0, // ใช้ stock_total
+          current_quantity: selectedProduct.stock_total || 0,
           p_id: formData.p_id,
           ...commonData
         });
@@ -279,7 +278,30 @@ export default function Products() {
           </Button>
         </div>
 
-        {/* --- ส่วน Grid ที่ปรับปรุง --- */}
+        {/* --- ส่วนที่เพิ่ม: ปุ่ม Filter Category --- */}
+        <div className="flex flex-wrap gap-2 pb-2">
+          <Button 
+            variant={selectedCategory === "All" ? "default" : "outline"} 
+            size="sm"
+            onClick={() => setSelectedCategory("All")}
+            className="rounded-full"
+          >
+            All
+          </Button>
+          {categories.map((category) => (
+            <Button
+              key={category}
+              variant={selectedCategory === category ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategory(category)}
+              className="rounded-full"
+            >
+              {/* ตัดคำให้สั้นลงโดยดึงเฉพาะตัวย่อในวงเล็บมาแสดง */}
+              {category.match(/\((.*?)\)/)?.[1] || category} 
+            </Button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -292,9 +314,9 @@ export default function Products() {
               </Card>
             ))}
           </div>
-        ) : products && products.length > 0 ? (
+        ) : filteredProducts && filteredProducts.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <Card key={product.id} className="group overflow-hidden transition-all hover:shadow-lg border hover:border-primary/20">
                 <CardContent className="p-0">
                   {/* Image Section */}
@@ -385,7 +407,9 @@ export default function Products() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
               <Package className="h-16 w-16 text-muted-foreground/30 mb-4" />
-              <p className="text-muted-foreground">No products found yet</p>
+              <p className="text-muted-foreground">
+                {selectedCategory !== "All" ? `No products found in ${selectedCategory}` : "No products found yet"}
+              </p>
               <Button className="mt-4" onClick={openAddDialog}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add your first product
@@ -396,7 +420,6 @@ export default function Products() {
       </div>
 
       {/* Dialog: Shared for Add and Edit */}
-      {/* ... ส่วน Dialog Code ด้านล่าง ใช้เหมือนเดิมได้เลยครับ เพราะเราแก้ logic state ไปแล้ว ... */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="w-[95vw] max-w-[640px] sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
