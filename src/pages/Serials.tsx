@@ -239,11 +239,11 @@ export default function Serials() {
                       <SelectContent>
                         <SelectItem value="พร้อมใช้">พร้อมใช้</SelectItem>
                         <SelectItem value="ถูกยืม">ถูกยืม</SelectItem>
-                        <SelectItem value="ไม่พร้อมใช้">ไม่พร้อมใช้ (เสีย)</SelectItem>
+                        <SelectItem value="ไม่พร้อมใช้">ไม่พร้อมใช้</SelectItem>
                         <SelectItem value="ส่งซ่อม">ส่งซ่อม</SelectItem>
-                        <SelectItem value="ไม่ใช้แล้ว">ไม่ใช้แล้ว (เลิกใช้งาน)</SelectItem>
+                        <SelectItem value="ไม่ใช้แล้ว">ไม่ใช้แล้ว</SelectItem>
                         <SelectItem value="หาย">หาย</SelectItem>
-                        <SelectItem value="ทิ้งแล้ว">ทิ้งแล้ว (จำหน่ายออก)</SelectItem>
+                        <SelectItem value="ทิ้งแล้ว">ทิ้งแล้ว</SelectItem>
                         <SelectItem value="ไม่เปิดใช้งาน">ไม่เปิดใช้งาน</SelectItem>
                       </SelectContent>
                     </Select>
