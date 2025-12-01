@@ -5,9 +5,10 @@ import {
   ArrowLeftRight, 
   Users, 
   Settings,
-  Building2
+  Building2,
+  LogOut
 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +21,8 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const menuItems = [
   { title: "แดชบอร์ด", url: "/", icon: LayoutDashboard },
@@ -32,6 +35,20 @@ const menuItems = [
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        toast.error("ออกจากระบบไม่สำเร็จ");
+      } else {
+        navigate("/login");
+      }
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาด");
+    }
+  };
   
   return (
     <Sidebar className="border-r-0">
@@ -82,6 +99,18 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="gradient-sidebar border-t border-sidebar-border p-4">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              onClick={handleLogout}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 mx-2 mb-2"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>ออกจากระบบ</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        
         <div className="text-xs text-sidebar-foreground/50 text-center">
           v1.0.0 © 2024
         </div>
