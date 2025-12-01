@@ -269,10 +269,10 @@ export default function Products() {
   };
 
   return (
-    <MainLayout title="Product & Asset Management">
+    <MainLayout title="สินค้า/ทรัพย์สิน (Products)">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <p className="text-muted-foreground">Keep every product and asset organized in one place</p>
+          <p className="text-muted-foreground">จัดเก็บสินค้าและทรัพย์สินค้า</p>
           <Button className="gap-2" onClick={openAddDialog}>
             <Plus className="h-4 w-4" /> Add Product
           </Button>
