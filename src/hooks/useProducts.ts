@@ -13,10 +13,11 @@ export interface Product {
   notes?: string | null;
   price: number;
   unit: string;
-  quantity?: number; // จำนวนสินค้าทั้งหมด
+  quantity?: number;
   image_url: string | null;
   created_at: string;
-  serial_count?: number;
+  stock_total: number;      // เพิ่ม field นี้
+  stock_available: number;  // เพิ่ม field นี้
 }
 
 export interface CreateProductInput {
@@ -35,7 +36,7 @@ export interface CreateProductInput {
 
 export interface UpdateProductInput extends Partial<CreateProductInput> {
   id: string;
-  current_quantity: number; // จำนวนเดิมเพื่อเอามาเทียบ
+  current_quantity: number;
 }
 
 export function useProducts() {
@@ -49,24 +50,35 @@ export function useProducts() {
       
       if (error) throw error;
       
-      // Get serial counts for each product
+      // ดึง serials ทั้งหมดเพื่อมานับแยกสถานะ
       const productIds = products.map(p => p.id);
-      const { data: serialCounts, error: countError } = await supabase
+      const { data: serials, error: serialError } = await supabase
         .from('product_serials')
-        .select('product_id')
+        .select('product_id, status')
         .in('product_id', productIds);
       
-      if (countError) throw countError;
+      if (serialError) throw serialError;
       
-      // Count serials per product
-      const countMap = serialCounts.reduce((acc, s) => {
-        acc[s.product_id] = (acc[s.product_id] || 0) + 1;
+      // คำนวณสต็อก Total และ Available
+      const stockMap = serials.reduce((acc, s) => {
+        if (!acc[s.product_id]) {
+          acc[s.product_id] = { total: 0, available: 0 };
+        }
+        
+        acc[s.product_id].total++;
+        
+        // เช็คสถานะว่าง (รองรับทั้งไทยและอังกฤษ)
+        if (s.status === 'Ready' || s.status === 'พร้อมใช้') {
+          acc[s.product_id].available++;
+        }
+        
         return acc;
-      }, {} as Record<string, number>);
+      }, {} as Record<string, { total: number; available: number }>);
       
       return products.map(p => ({
         ...p,
-        serial_count: countMap[p.id] || 0
+        stock_total: stockMap[p.id]?.total || 0,
+        stock_available: stockMap[p.id]?.available || 0,
       })) as Product[];
     },
   });
@@ -81,7 +93,7 @@ export function useCreateProduct() {
       const { data: product, error: productError } = await supabase
         .from('products')
         .insert({
-          p_id: input.p_id,
+          p_id: input.p_id, // *ต้องมั่นใจว่าส่งมาเป็น 4 หลักจาก Products.tsx
           name: input.name,
           category: input.category,
           brand: input.brand,
@@ -91,18 +103,19 @@ export function useCreateProduct() {
           price: input.price,
           unit: input.unit,
           image_url: input.image_url,
-          quantity: input.initial_quantity, // บันทึกจำนวนรวม
+          quantity: input.initial_quantity,
         })
         .select()
         .single();
       
       if (productError) throw productError;
       
-      // Create serials if quantity > 0
+      // Create serials
       if (input.initial_quantity > 0) {
+        // แก้ไข: สร้าง Serial running 4 หลัก (0001) เพื่อให้เป็น IT-0001-0001
         const serials = Array.from({ length: input.initial_quantity }, (_, i) => ({
           product_id: product.id,
-          serial_code: `${input.p_id}-${String(i + 1).padStart(2, '0')}`,
+          serial_code: `${input.p_id}-${String(i + 1).padStart(4, '0')}`, 
           status: 'พร้อมใช้' as const,
           sticker_status: 'รอติดสติ๊กเกอร์' as const,
         }));
@@ -127,13 +140,12 @@ export function useCreateProduct() {
   });
 }
 
-// *** เพิ่ม Hook สำหรับ Update ***
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: UpdateProductInput) => {
-      // 1. อัปเดตข้อมูลสินค้าหลัก
+      // 1. Update product info
       const { data: product, error: productError } = await supabase
         .from('products')
         .update({
@@ -146,7 +158,7 @@ export function useUpdateProduct() {
           price: input.price,
           unit: input.unit,
           image_url: input.image_url,
-          quantity: input.initial_quantity, // อัปเดตจำนวนใหม่
+          quantity: input.initial_quantity,
         })
         .eq('id', input.id)
         .select()
@@ -154,35 +166,33 @@ export function useUpdateProduct() {
 
       if (productError) throw productError;
 
-      // 2. ตรวจสอบว่ามีการเพิ่มจำนวนสินค้าหรือไม่
+      // 2. Add more stock
       const newQuantity = input.initial_quantity || 0;
       const oldQuantity = input.current_quantity || 0;
       
       if (newQuantity > oldQuantity) {
         const diff = newQuantity - oldQuantity;
         
-        // หา Serial ตัวล่าสุดเพื่อรันเลขต่อ
-        const { data: lastSerial, error: serialQueryError } = await supabase
+        // Find last serial to continue running number
+        const { data: lastSerial } = await supabase
           .from('product_serials')
           .select('serial_code')
           .eq('product_id', input.id)
           .order('serial_code', { ascending: false })
           .limit(1)
-          .maybeSingle(); // ใช้ maybeSingle กันกรณีไม่มี serial เดิมเลย
+          .maybeSingle();
 
         let startNumber = 0;
         if (lastSerial && lastSerial.serial_code) {
-            // สมมติ format คือ SKU-01, SKU-02 ดึงเลขท้ายมา
             const parts = lastSerial.serial_code.split('-');
             const lastNumStr = parts[parts.length - 1];
             startNumber = parseInt(lastNumStr, 10) || 0;
         }
 
-        // สร้าง Serial ใหม่
+        // แก้ไข: สร้าง Serial running 4 หลัก (0001) สำหรับการเพิ่มสต็อก
         const newSerials = Array.from({ length: diff }, (_, i) => ({
           product_id: input.id,
-          // ใช้ p_id เดิม หรือ p_id ใหม่ถ้าระบบอนุญาตให้แก้ p_id แต่แนะนำให้ใช้ p_id จาก product ที่ query มา
-          serial_code: `${product.p_id}-${String(startNumber + i + 1).padStart(2, '0')}`,
+          serial_code: `${product.p_id}-${String(startNumber + i + 1).padStart(4, '0')}`,
           status: 'พร้อมใช้' as const,
           sticker_status: 'รอติดสติ๊กเกอร์' as const,
         }));
@@ -209,6 +219,7 @@ export function useUpdateProduct() {
   });
 }
 
+// ... (useDeleteProduct คงเดิม)
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
   

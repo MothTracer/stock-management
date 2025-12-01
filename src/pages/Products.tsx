@@ -1,3 +1,4 @@
+// ... imports เดิม ...
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Package, Trash2, Image as ImageIcon, X, Pencil } from "lucide-react";
+import { Plus, Package, Trash2, Image as ImageIcon, X, Pencil, Box } from "lucide-react"; // เพิ่ม Icon Box
 import { useProducts, useDeleteProduct, useUpdateProduct, useCreateProduct, Product } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge"; // เพิ่ม Badge
 
+// ... categories constant เดิม ...
 const categories = [
   "ไอที/อิเล็กทรอนิกส์ (IT)",
   "เฟอร์นิเจอร์ (FR)",
@@ -27,8 +30,9 @@ const categories = [
 ];
 
 export default function Products() {
+  // ... hooks และ states เดิม ...
   const { data: products, isLoading } = useProducts();
-  const createProductHook = useCreateProduct(); // เปลี่ยนชื่อเพื่อไม่ให้ซ้ำกับฟังก์ชันเรียกใช้
+  const createProductHook = useCreateProduct();
   const updateProductHook = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   
@@ -36,7 +40,6 @@ export default function Products() {
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingSku, setIsGeneratingSku] = useState(false);
   
-  // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -54,12 +57,13 @@ export default function Products() {
     initial_quantity: "1",
   });
 
+  // ... Options states และ functions เดิม (handleAddOption, handleRemoveOption, etc.) ...
   const [nameOptions, setNameOptions] = useState(["AIO", "Notebook", "Mouse", "Monitor"]);
   const [modelOptions, setModelOptions] = useState(["Gen 1", "Gen 2", "Gen 3"]);
   const [brandOptions, setBrandOptions] = useState(["Dell", "HP", "Lenovo", "Asus", "Acer", "Apple"]);
   const [unitOptions, setUnitOptions] = useState(["Piece", "Box", "Set", "Unit"]);
 
-  // Reset form when opening dialog for Adding
+  // ... openAddDialog, openEditDialog functions เดิม ...
   const openAddDialog = () => {
     setIsEditing(false);
     setSelectedProduct(null);
@@ -79,7 +83,6 @@ export default function Products() {
     setIsDialogOpen(true);
   };
 
-  // Populate form when opening dialog for Editing
   const openEditDialog = (product: Product) => {
     setIsEditing(true);
     setSelectedProduct(product);
@@ -94,20 +97,21 @@ export default function Products() {
       price: product.price.toString(),
       unit: product.unit,
       image_url: product.image_url || "",
-      initial_quantity: (product.quantity || 0).toString(),
+      initial_quantity: (product.stock_total || 0).toString(), // ใช้ stock_total แทน quantity เดิม
     });
     setIsDialogOpen(true);
   };
 
+  // ... getCategoryPrefix เดิม ...
   const getCategoryPrefix = (category: string) => {
     const match = category.match(/\(([^)]+)\)/);
     return match ? match[1].toUpperCase() : "GEN";
   };
 
+  // *** แก้ไข function generateSku ให้เป็น 4 หลัก ***
   const generateSku = async (category: string) => {
     setFormData(prev => ({ ...prev, category }));
     
-    // ถ้าแก้ไข ไม่ต้องเจน SKU ใหม่ ยกเว้น user อยากเปลี่ยนเอง (แต่ปกติไม่ควรเปลี่ยน prefix)
     if (isEditing) return; 
 
     const prefix = getCategoryPrefix(category);
@@ -128,7 +132,9 @@ export default function Products() {
       const match = lastCode?.match(/-(\d+)$/);
       const lastNumber = match ? parseInt(match[1], 10) : 0;
       const nextNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
-      const padLength = match ? Math.max(3, match[1].length) : 3;
+      
+      // เปลี่ยนตรงนี้: บังคับให้เป็น 4 หลัก (0001)
+      const padLength = 4; 
       const nextSku = `${prefix}-${String(nextNumber).padStart(padLength, '0')}`;
 
       setFormData(prev => (
@@ -144,6 +150,8 @@ export default function Products() {
     }
   };
 
+  // ... handleImageUpload, handleAddOption, handleRemoveOption, handleSelectOption, OptionChips, handleSubmit ...
+  // (ฟังก์ชันเหล่านี้ใช้ Logic เดิมได้เลย แต่ตอน handleSubmit มันจะไปเรียก hook ที่เราแก้ไว้แล้ว)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -201,84 +209,55 @@ export default function Products() {
     setFormData(prev => ({ ...prev, [field]: value } as typeof prev));
   };
 
-  const OptionChips = ({
-    options,
-    field,
-  }: {
-    options: string[];
-    field: 'name' | 'brand' | 'unit' | 'model';
-  }) => (
+  const OptionChips = ({ options, field }: { options: string[]; field: 'name' | 'brand' | 'unit' | 'model'; }) => (
     <div className="flex flex-wrap gap-2 rounded-md border bg-muted/50 p-2">
       {options.map(option => (
         <div key={option} className="flex items-center gap-1 rounded-full bg-background px-3 py-1 text-sm shadow-sm">
-          <button
-            type="button"
-            className="font-medium hover:underline"
-            onClick={() => handleSelectOption(field, option)}
-          >
+          <button type="button" className="font-medium hover:underline" onClick={() => handleSelectOption(field, option)}>
             {option}
           </button>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={() => handleRemoveOption(field, option)}
-            aria-label={`Remove ${option}`}
-          >
+          <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => handleRemoveOption(field, option)}>
             <X className="h-4 w-4" />
           </button>
         </div>
       ))}
-      {options.length === 0 && (
-        <span className="text-xs text-muted-foreground">ยังไม่มีตัวเลือกที่บันทึกไว้</span>
-      )}
     </div>
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check if loading
     if (createProductHook.isPending || updateProductHook.isPending) return;
 
     try {
+      const commonData = {
+        name: formData.name,
+        category: formData.category,
+        brand: formData.brand,
+        model: formData.model,
+        description: formData.description,
+        notes: formData.notes,
+        price: parseFloat(formData.price) || 0,
+        unit: formData.unit,
+        image_url: formData.image_url,
+        initial_quantity: parseInt(formData.initial_quantity) || 0,
+      };
+
       if (isEditing && selectedProduct) {
-        // --- Update Logic ---
         await updateProductHook.mutateAsync({
           id: selectedProduct.id,
-          current_quantity: selectedProduct.quantity || 0,
+          current_quantity: selectedProduct.stock_total || 0, // ใช้ stock_total
           p_id: formData.p_id,
-          name: formData.name,
-          category: formData.category,
-          brand: formData.brand,
-          model: formData.model,
-          description: formData.description,
-          notes: formData.notes,
-          price: parseFloat(formData.price) || 0,
-          unit: formData.unit,
-          image_url: formData.image_url,
-          initial_quantity: parseInt(formData.initial_quantity) || 0,
+          ...commonData
         });
       } else {
-        // --- Create Logic ---
-        await createProductHook.mutateAsync({ // ใช้ Hook ที่เรา rename
+        await createProductHook.mutateAsync({
           p_id: formData.p_id,
-          name: formData.name,
-          category: formData.category,
-          brand: formData.brand,
-          model: formData.model,
-          description: formData.description,
-          notes: formData.notes,
-          price: parseFloat(formData.price) || 0,
-          unit: formData.unit,
-          image_url: formData.image_url,
-          initial_quantity: parseInt(formData.initial_quantity) || 0,
+          ...commonData
         });
       }
-
       setIsDialogOpen(false);
     } catch (error: any) {
       console.error(error);
-      // Toast handled in hooks
     }
   };
 
@@ -293,18 +272,14 @@ export default function Products() {
   return (
     <MainLayout title="Product & Asset Management">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
-          <p className="text-muted-foreground">
-            Keep every product and asset organized in one place
-          </p>
+          <p className="text-muted-foreground">Keep every product and asset organized in one place</p>
           <Button className="gap-2" onClick={openAddDialog}>
-            <Plus className="h-4 w-4" />
-            Add Product
+            <Plus className="h-4 w-4" /> Add Product
           </Button>
         </div>
 
-        {/* Products Grid */}
+        {/* --- ส่วน Grid ที่ปรับปรุง --- */}
         {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -320,36 +295,39 @@ export default function Products() {
         ) : products && products.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
-              <Card key={product.id} className="group overflow-hidden transition-all hover:shadow-md">
+              <Card key={product.id} className="group overflow-hidden transition-all hover:shadow-lg border hover:border-primary/20">
                 <CardContent className="p-0">
-                  <div className="relative aspect-[4/3] bg-muted">
+                  {/* Image Section */}
+                  <div className="relative aspect-[4/3] bg-muted/30">
+                    <Badge variant="secondary" className="absolute top-2 left-2 z-10 bg-black/90 backdrop-blur-sm font-mono text-xs">
+                      {product.p_id}
+                    </Badge>
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain p-4 mix-blend-multiply"
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center">
-                        <Package className="h-16 w-16 text-muted-foreground/30" />
+                        <Package className="h-16 w-16 text-muted-foreground/20" />
                       </div>
                     )}
                     
-                    {/* Action Buttons Overlay */}
+                    {/* Action Buttons */}
                     <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="secondary"
                         size="icon"
-                        className="h-8 w-8 bg-white/90 hover:bg-white text-primary"
+                        className="h-8 w-8 bg-white/90 hover:bg-white text-primary shadow-sm"
                         onClick={() => openEditDialog(product)}
-                        title="View/Edit Details"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="destructive"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-8 w-8 shadow-sm"
                         onClick={() => {
                           if(confirm('Are you sure you want to delete this product? All serials will be deleted.')) {
                             deleteProduct.mutate(product.id);
@@ -360,21 +338,43 @@ export default function Products() {
                       </Button>
                     </div>
                   </div>
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-mono text-xs text-primary">{product.p_id}</p>
-                        <h3 className="font-semibold text-foreground line-clamp-1">{product.name}</h3>
+
+                  {/* Info Section */}
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                          {product.category}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {product.brand} {product.model}
+                        </span>
                       </div>
+                      <h3 className="font-semibold text-foreground line-clamp-1" title={product.name}>
+                        {product.name}
+                      </h3>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{product.category}</span>
-                      <span className="font-medium px-2 py-0.5 rounded text-xs">
-                        {product.quantity} {product.unit} (Total)
-                      </span>
-                    </div>
-                    <div className="text-lg font-bold text-primary">
-                      {formatCurrency(product.price)}
+
+                    <div className="flex items-end justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-muted-foreground mb-0.5">Price</span>
+                        <span className="text-lg font-bold text-primary">
+                          {formatCurrency(product.price)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-muted-foreground mb-1">Available / Total</span>
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md">
+                          <Box className={`h-3.5 w-3.5 ${product.stock_available > 0 ? 'text-success' : 'text-destructive'}`} />
+                          <span className={`text-sm font-bold ${product.stock_available > 0 ? 'text-foreground' : 'text-destructive'}`}>
+                            {product.stock_available}
+                          </span>
+                          <span className="text-muted-foreground text-xs">/</span>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {product.stock_total}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -396,6 +396,7 @@ export default function Products() {
       </div>
 
       {/* Dialog: Shared for Add and Edit */}
+      {/* ... ส่วน Dialog Code ด้านล่าง ใช้เหมือนเดิมได้เลยครับ เพราะเราแก้ logic state ไปแล้ว ... */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="w-[95vw] max-w-[640px] sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -408,7 +409,7 @@ export default function Products() {
                 <Select
                   value={formData.category}
                   onValueChange={(value) => generateSku(value)}
-                  disabled={isEditing} // ไม่อนุญาตให้เปลี่ยนหมวดหมู่ตอนแก้ เพื่อรักษา SKU
+                  disabled={isEditing}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -420,17 +421,17 @@ export default function Products() {
                   </SelectContent>
                 </Select>
                 {!isEditing && <p className="text-xs text-muted-foreground">
-                  เลือกหมวดหมู่ก่อนเพื่อให้ระบบสร้างรหัส SKU ถัดไปให้อัตโนมัติ
+                  เลือกหมวดหมู่เพื่อสร้างรหัส SKU (4 หลัก)
                 </p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="p_id">SKU</Label>
+                <Label htmlFor="p_id">SKU (ID)</Label>
                 <Input
                   id="p_id"
-                  placeholder="สร้างรหัสอัตโนมัติ"
+                  placeholder="เช่น IT-0001"
                   value={formData.p_id}
-                  readOnly={true} // SKU ไม่ควรแก้ด้วยมือเพื่อความปลอดภัยของลำดับ
-                  className="bg-muted"
+                  readOnly={true}
+                  className="bg-muted font-mono"
                 />
               </div>
             </div>
@@ -445,15 +446,7 @@ export default function Products() {
                 required
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => handleAddOption('name', formData.name)}
-                >
-                  Add to quick list
-                </Button>
-                <span className="text-xs text-muted-foreground">กดที่ตัวเลือกเพื่อกรอกอัตโนมัติ กด X เพื่อลบ</span>
+                <Button type="button" size="sm" variant="secondary" onClick={() => handleAddOption('name', formData.name)}>Add to quick list</Button>
               </div>
               <OptionChips options={nameOptions} field="name" />
             </div>
@@ -468,16 +461,6 @@ export default function Products() {
                     value={formData.brand}
                     onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
                   />
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleAddOption('brand', formData.brand)}
-                    >
-                      Add to quick list
-                    </Button>
-                  </div>
                   <OptionChips options={brandOptions} field="brand" />
                 </div>
                 <div className="space-y-2">
@@ -488,16 +471,6 @@ export default function Products() {
                     value={formData.model}
                     onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
                   />
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleAddOption('model', formData.model)}
-                    >
-                      Add to quick list
-                    </Button>
-                  </div>
                   <OptionChips options={modelOptions} field="model" />
                 </div>
               </div>
@@ -519,7 +492,7 @@ export default function Products() {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                placeholder="Add key specs, color, accessories or usage notes."
+                placeholder="รายละเอียดเพิ่มเติม"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={3}
@@ -532,14 +505,14 @@ export default function Products() {
                   {isEditing ? "Total Quantity (Update to Add)" : "Initial Quantity"}
                   {isEditing && (
                     <span className="text-xs text-primary font-normal">
-                      Current: {selectedProduct?.quantity}
+                      Current Total: {selectedProduct?.stock_total}
                     </span>
                   )}
                 </Label>
                 <Input
                   id="initial_quantity"
                   type="number"
-                  min={isEditing ? selectedProduct?.quantity : "0"} // ห้ามลดจำนวนต่ำกว่าเดิม
+                  min={isEditing ? selectedProduct?.stock_total : "0"}
                   placeholder="1"
                   value={formData.initial_quantity}
                   onChange={(e) => setFormData(prev => ({ ...prev, initial_quantity: e.target.value }))}
@@ -547,7 +520,7 @@ export default function Products() {
                 />
                 {isEditing && (
                   <p className="text-xs text-muted-foreground">
-                    * หากเพิ่มตัวเลข ระบบจะสร้าง Serial ใหม่ให้เท่ากับจำนวนที่เพิ่มขึ้น
+                    * หากเพิ่มตัวเลข ระบบจะสร้าง Serial ใหม่ (เช่น {formData.p_id}-XXXX) ให้เท่ากับจำนวนที่เพิ่ม
                   </p>
                 )}
               </div>
@@ -559,16 +532,6 @@ export default function Products() {
                   value={formData.unit}
                   onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
                 />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => handleAddOption('unit', formData.unit)}
-                  >
-                    Add to quick list
-                  </Button>
-                </div>
                 <OptionChips options={unitOptions} field="unit" />
               </div>
             </div>
@@ -577,28 +540,19 @@ export default function Products() {
               <Label>Product Image</Label>
               <div className="flex items-center gap-4">
                 {formData.image_url ? (
-                  <img
-                    src={formData.image_url}
-                    alt="Preview"
-                    className="h-20 w-20 rounded-lg object-cover border"
-                  />
+                  <img src={formData.image_url} alt="Preview" className="h-20 w-20 rounded-lg object-cover border" />
                 ) : (
                   <div className="flex h-20 w-20 items-center justify-center rounded-lg border bg-muted">
                     <ImageIcon className="h-8 w-8 text-muted-foreground" />
                   </div>
                 )}
-                <div>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    disabled={isUploading}
-                    className="w-auto"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    JPG or PNG, up to 5MB.
-                  </p>
-                </div>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={isUploading}
+                  className="w-auto"
+                />
               </div>
             </div>
 
@@ -606,7 +560,7 @@ export default function Products() {
               <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"
-                placeholder="Internal notes such as warranty info or storage location."
+                placeholder="Internal notes"
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 rows={3}
