@@ -13,7 +13,7 @@ export interface Product {
   notes?: string | null;
   price: number;
   unit: string;
-  quantity?: number;
+  quantity?: number; // จำนวนสินค้าทั้งหมด
   image_url: string | null;
   created_at: string;
   serial_count?: number;
@@ -24,10 +24,18 @@ export interface CreateProductInput {
   name: string;
   category: string;
   brand?: string;
+  model?: string;
+  description?: string;
+  notes?: string;
   price: number;
   unit: string;
   image_url?: string;
   initial_quantity: number;
+}
+
+export interface UpdateProductInput extends Partial<CreateProductInput> {
+  id: string;
+  current_quantity: number; // จำนวนเดิมเพื่อเอามาเทียบ
 }
 
 export function useProducts() {
@@ -77,9 +85,13 @@ export function useCreateProduct() {
           name: input.name,
           category: input.category,
           brand: input.brand,
+          model: input.model,
+          description: input.description,
+          notes: input.notes,
           price: input.price,
           unit: input.unit,
           image_url: input.image_url,
+          quantity: input.initial_quantity, // บันทึกจำนวนรวม
         })
         .select()
         .single();
@@ -91,8 +103,8 @@ export function useCreateProduct() {
         const serials = Array.from({ length: input.initial_quantity }, (_, i) => ({
           product_id: product.id,
           serial_code: `${input.p_id}-${String(i + 1).padStart(2, '0')}`,
-          status: 'Ready' as const,
-          sticker_status: 'Pending' as const,
+          status: 'พร้อมใช้' as const,
+          sticker_status: 'รอติดสติ๊กเกอร์' as const,
         }));
         
         const { error: serialError } = await supabase
@@ -107,10 +119,92 @@ export function useCreateProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['serials'] });
-      toast.success('Product created');
+      toast.success('Product created successfully');
     },
     onError: (error: Error) => {
       toast.error(`Failed to create product: ${error.message}`);
+    },
+  });
+}
+
+// *** เพิ่ม Hook สำหรับ Update ***
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateProductInput) => {
+      // 1. อัปเดตข้อมูลสินค้าหลัก
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .update({
+          name: input.name,
+          category: input.category,
+          brand: input.brand,
+          model: input.model,
+          description: input.description,
+          notes: input.notes,
+          price: input.price,
+          unit: input.unit,
+          image_url: input.image_url,
+          quantity: input.initial_quantity, // อัปเดตจำนวนใหม่
+        })
+        .eq('id', input.id)
+        .select()
+        .single();
+
+      if (productError) throw productError;
+
+      // 2. ตรวจสอบว่ามีการเพิ่มจำนวนสินค้าหรือไม่
+      const newQuantity = input.initial_quantity || 0;
+      const oldQuantity = input.current_quantity || 0;
+      
+      if (newQuantity > oldQuantity) {
+        const diff = newQuantity - oldQuantity;
+        
+        // หา Serial ตัวล่าสุดเพื่อรันเลขต่อ
+        const { data: lastSerial, error: serialQueryError } = await supabase
+          .from('product_serials')
+          .select('serial_code')
+          .eq('product_id', input.id)
+          .order('serial_code', { ascending: false })
+          .limit(1)
+          .maybeSingle(); // ใช้ maybeSingle กันกรณีไม่มี serial เดิมเลย
+
+        let startNumber = 0;
+        if (lastSerial && lastSerial.serial_code) {
+            // สมมติ format คือ SKU-01, SKU-02 ดึงเลขท้ายมา
+            const parts = lastSerial.serial_code.split('-');
+            const lastNumStr = parts[parts.length - 1];
+            startNumber = parseInt(lastNumStr, 10) || 0;
+        }
+
+        // สร้าง Serial ใหม่
+        const newSerials = Array.from({ length: diff }, (_, i) => ({
+          product_id: input.id,
+          // ใช้ p_id เดิม หรือ p_id ใหม่ถ้าระบบอนุญาตให้แก้ p_id แต่แนะนำให้ใช้ p_id จาก product ที่ query มา
+          serial_code: `${product.p_id}-${String(startNumber + i + 1).padStart(2, '0')}`,
+          status: 'พร้อมใช้' as const,
+          sticker_status: 'รอติดสติ๊กเกอร์' as const,
+        }));
+
+        if (newSerials.length > 0) {
+            const { error: insertError } = await supabase
+            .from('product_serials')
+            .insert(newSerials);
+            
+            if (insertError) throw insertError;
+        }
+      }
+
+      return product;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['serials'] });
+      toast.success('Product updated & Stock added');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update: ${error.message}`);
     },
   });
 }
