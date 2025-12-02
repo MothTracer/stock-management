@@ -85,10 +85,10 @@ export default function Products() {
     initial_quantity: "1",
   });
 
-  const [nameOptions, setNameOptions] = useState(["AIO", "Notebook", "Mouse", "Monitor"]);
+  const [nameOptions, setNameOptions] = useState(["AIO", "Notebook", "Mouse", "Monitor", "Keyboard", "Headphones", "Smartphone"]);
   const [modelOptions, setModelOptions] = useState(["Gen 1", "Gen 2", "Gen 3"]);
   const [brandOptions, setBrandOptions] = useState(["Dell", "HP", "Lenovo", "Asus", "Acer", "Apple"]);
-  const [unitOptions, setUnitOptions] = useState(["Piece", "Box", "Set", "Unit"]);
+  const [unitOptions, setUnitOptions] = useState(["เครื่อง", "อัน", "ตัว", "เส้น"]);
 
   // --- Actions ---
 
@@ -104,7 +104,7 @@ export default function Products() {
       description: "",
       notes: "",
       price: "",
-      unit: "Piece",
+      unit: "",
       image_url: "",
       initial_quantity: "1",
     });
