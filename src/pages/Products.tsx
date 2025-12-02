@@ -6,13 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Package, Trash2, Image as ImageIcon, X, Pencil, Box } from "lucide-react";
+import { 
+  Plus, Package, Trash2, Image as ImageIcon, 
+  X, Pencil, Box, Search, Filter, Eye, Check 
+} from "lucide-react";
 import { useProducts, useDeleteProduct, useUpdateProduct, useCreateProduct, Product } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 const categories = [
   "ไอที/อิเล็กทรอนิกส์ (IT)",
@@ -33,20 +39,36 @@ export default function Products() {
   const updateProductHook = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   
+  // Dialog States
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false); // State สำหรับ View Dialog
+  
+  // Process States
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingSku, setIsGeneratingSku] = useState(false);
-  
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Selection Data
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // --- ส่วนที่เพิ่ม: State สำหรับ Filter ---
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  // --- Search & Filter States ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]); // เปลี่ยนเป็น Array เพื่อรองรับ Multi-select
 
-  // --- ส่วนที่เพิ่ม: Logic กรองสินค้า ---
+  // --- Filtering Logic ---
   const filteredProducts = products?.filter((product) => {
-    if (selectedCategory === "All") return true;
-    return product.category === selectedCategory;
+    // 1. Filter by Category (Multi-select logic)
+    const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(product.category);
+    
+    // 2. Filter by Search Query
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = 
+      product.name.toLowerCase().includes(query) ||
+      product.p_id.toLowerCase().includes(query) ||
+      (product.brand && product.brand.toLowerCase().includes(query)) ||
+      (product.model && product.model.toLowerCase().includes(query));
+
+    return matchesCategory && matchesSearch;
   });
 
   const [formData, setFormData] = useState({
@@ -67,6 +89,8 @@ export default function Products() {
   const [modelOptions, setModelOptions] = useState(["Gen 1", "Gen 2", "Gen 3"]);
   const [brandOptions, setBrandOptions] = useState(["Dell", "HP", "Lenovo", "Asus", "Acer", "Apple"]);
   const [unitOptions, setUnitOptions] = useState(["Piece", "Box", "Set", "Unit"]);
+
+  // --- Actions ---
 
   const openAddDialog = () => {
     setIsEditing(false);
@@ -106,6 +130,25 @@ export default function Products() {
     setIsDialogOpen(true);
   };
 
+  const openViewDialog = (product: Product) => {
+    setSelectedProduct(product);
+    setIsViewDialogOpen(true);
+  };
+
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category) 
+        : [...prev, category]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedCategories([]);
+    setSearchQuery("");
+  };
+
+  // ... (ส่วน Logic การ Generate SKU และ Upload รูป คงเดิม)
   const getCategoryPrefix = (category: string) => {
     const match = category.match(/\(([^)]+)\)/);
     return match ? match[1].toUpperCase() : "GEN";
@@ -180,16 +223,13 @@ export default function Products() {
     }
   };
 
+  // ... (Helper functions for Options Chips)
   const handleAddOption = (field: 'name' | 'brand' | 'unit' | 'model', value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-
     const addIfNew = (options: string[], setter: (opts: string[]) => void) => {
-      if (!options.includes(trimmed)) {
-        setter([...options, trimmed]);
-      }
+      if (!options.includes(trimmed)) setter([...options, trimmed]);
     };
-
     if (field === 'name') addIfNew(nameOptions, setNameOptions);
     if (field === 'model') addIfNew(modelOptions, setModelOptions);
     if (field === 'brand') addIfNew(brandOptions, setBrandOptions);
@@ -211,12 +251,10 @@ export default function Products() {
   const OptionChips = ({ options, field }: { options: string[]; field: 'name' | 'brand' | 'unit' | 'model'; }) => (
     <div className="flex flex-wrap gap-2 rounded-md border bg-muted/50 p-2">
       {options.map(option => (
-        <div key={option} className="flex items-center gap-1 rounded-full bg-background px-3 py-1 text-sm shadow-sm">
-          <button type="button" className="font-medium hover:underline" onClick={() => handleSelectOption(field, option)}>
-            {option}
-          </button>
-          <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => handleRemoveOption(field, option)}>
-            <X className="h-4 w-4" />
+        <div key={option} className="flex items-center gap-1 rounded-full bg-background px-3 py-1 text-sm shadow-sm transition-all hover:shadow-md cursor-pointer" onClick={() => handleSelectOption(field, option)}>
+          <span className="font-medium">{option}</span>
+          <button type="button" className="text-muted-foreground hover:text-destructive ml-1" onClick={(e) => { e.stopPropagation(); handleRemoveOption(field, option); }}>
+            <X className="h-3 w-3" />
           </button>
         </div>
       ))}
@@ -271,37 +309,113 @@ export default function Products() {
   return (
     <MainLayout title="สินค้า/ทรัพย์สิน (Products)">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground">จัดเก็บสินค้าและทรัพย์สินค้า</p>
-          <Button className="gap-2" onClick={openAddDialog}>
+        
+        {/* --- Toolbar: Search & Filter --- */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-card p-4 rounded-lg shadow-sm border">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-1">
+            
+            {/* Search Bar */}
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="ค้นหา (ชื่อ, SKU, ยี่ห้อ, รุ่น)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Popover */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="gap-2 border-dashed">
+                  <Filter className="h-4 w-4" />
+                  ตัวกรอง
+                  {selectedCategories.length > 0 && (
+                    <Badge variant="secondary" className="h-5 px-1.5 rounded-sm">
+                      {selectedCategories.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0" align="start">
+                <div className="p-4 pb-2">
+                  <h4 className="font-medium leading-none mb-2">หมวดหมู่สินค้า</h4>
+                  <p className="text-sm text-muted-foreground">เลือกได้มากกว่า 1 รายการ</p>
+                </div>
+                <Separator />
+                <ScrollArea className="h-[300px] p-2">
+                  <div className="space-y-1">
+                    {categories.map((category) => {
+                      const isSelected = selectedCategories.includes(category);
+                      return (
+                        <div
+                          key={category}
+                          className={`
+                            flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer text-sm transition-colors
+                            ${isSelected ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}
+                          `}
+                          onClick={() => toggleCategory(category)}
+                        >
+                          <div className={`
+                            flex h-4 w-4 items-center justify-center rounded border
+                            ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground'}
+                          `}>
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                          <span>{category}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+                {(selectedCategories.length > 0) && (
+                  <>
+                    <Separator />
+                    <div className="p-2">
+                      <Button variant="ghost" className="w-full h-8 text-xs" onClick={() => setSelectedCategories([])}>
+                        ล้างตัวกรอง
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            {/* Active Filters Chips */}
+            {(selectedCategories.length > 0) && (
+              <div className="hidden lg:flex items-center gap-2 overflow-x-auto pb-1">
+                <Separator orientation="vertical" className="h-6 mx-2" />
+                {selectedCategories.map(cat => (
+                  <Badge key={cat} variant="secondary" className="gap-1 pr-1">
+                    {cat.match(/\(([^)]+)\)/)?.[1] || cat}
+                    <X 
+                      className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                      onClick={() => toggleCategory(cat)}
+                    />
+                  </Badge>
+                ))}
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground" onClick={clearFilters}>
+                  Reset
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <Button className="gap-2 w-full sm:w-auto" onClick={openAddDialog}>
             <Plus className="h-4 w-4" /> Add Product
           </Button>
         </div>
 
-        {/* --- ส่วนที่เพิ่ม: ปุ่ม Filter Category --- */}
-        <div className="flex flex-wrap gap-2 pb-2">
-          <Button 
-            variant={selectedCategory === "All" ? "default" : "outline"} 
-            size="sm"
-            onClick={() => setSelectedCategory("All")}
-            className="rounded-full"
-          >
-            All
-          </Button>
-          {categories.map((category) => (
-            <Button
-              key={category}
-              variant={selectedCategory === category ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedCategory(category)}
-              className="rounded-full"
-            >
-              {/* ตัดคำให้สั้นลงโดยดึงเฉพาะตัวย่อในวงเล็บมาแสดง */}
-              {category.match(/\((.*?)\)/)?.[1] || category} 
-            </Button>
-          ))}
-        </div>
-
+        {/* Product Grid */}
         {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -317,85 +431,93 @@ export default function Products() {
         ) : filteredProducts && filteredProducts.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => (
-              <Card key={product.id} className="group overflow-hidden transition-all hover:shadow-lg border hover:border-primary/20">
+              <Card key={product.id} className="group overflow-hidden transition-all hover:shadow-lg border hover:border-primary/20 bg-card">
                 <CardContent className="p-0">
-                  {/* Image Section */}
-                  <div className="relative aspect-[4/3] bg-muted/30">
-                    <Badge variant="secondary" className="absolute top-2 left-2 z-10 bg-black/90 backdrop-blur-sm font-mono text-xs">
+                  {/* Image Area */}
+                  <div className="relative aspect-[4/3] bg-muted/20 p-6 flex items-center justify-center cursor-pointer" onClick={() => openViewDialog(product)}>
+                    <Badge className="absolute top-2 left-2 z-10 bg-black/90 hover:bg-black/80 text-white backdrop-blur-md font-mono text-[10px] tracking-wide border-0 shadow-sm">
                       {product.p_id}
                     </Badge>
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className="h-full w-full object-contain p-4 mix-blend-multiply"
+                        className="w-full h-full object-contain transition-transform group-hover:scale-105 mix-blend-multiply"
                       />
                     ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <Package className="h-16 w-16 text-muted-foreground/20" />
-                      </div>
+                      <Package className="h-16 w-16 text-muted-foreground/20" />
                     )}
                     
-                    {/* Action Buttons */}
-                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Hover Actions */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[1px]">
                       <Button
                         variant="secondary"
                         size="icon"
-                        className="h-8 w-8 bg-white/90 hover:bg-white text-primary shadow-sm"
-                        onClick={() => openEditDialog(product)}
+                        className="h-9 w-9 rounded-full shadow-lg hover:scale-110 transition-transform"
+                        onClick={(e) => { e.stopPropagation(); openViewDialog(product); }}
+                        title="ดูรายละเอียด"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-9 w-9 rounded-full shadow-lg hover:scale-110 transition-transform text-orange-600"
+                        onClick={(e) => { e.stopPropagation(); openEditDialog(product); }}
+                        title="แก้ไข"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="destructive"
+                        variant="secondary"
                         size="icon"
-                        className="h-8 w-8 shadow-sm"
-                        onClick={() => {
-                          if(confirm('Are you sure you want to delete this product? All serials will be deleted.')) {
+                        className="h-9 w-9 rounded-full shadow-lg hover:scale-110 transition-transform text-red-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if(confirm('ยืนยันการลบสินค้านี้? รหัส Serial ทั้งหมดจะถูกลบด้วย')) {
                             deleteProduct.mutate(product.id);
                           }
                         }}
+                        title="ลบ"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
-                  {/* Info Section */}
-                  <div className="p-4 space-y-3">
+                  {/* Info Area */}
+                  <div className="p-4 space-y-2 border-t">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-                          {product.category}
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1.5 py-0.5 rounded-sm bg-muted">
+                          {product.category.match(/\(([^)]+)\)/)?.[1] || "GEN"}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {product.brand} {product.model}
-                        </span>
+                        {(product.brand || product.model) && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[50%]">
+                            {[product.brand, product.model].filter(Boolean).join(' ')}
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-semibold text-foreground line-clamp-1" title={product.name}>
                         {product.name}
                       </h3>
                     </div>
 
-                    <div className="flex items-end justify-between">
+                    <div className="flex items-end justify-between pt-2">
                       <div className="flex flex-col">
-                        <span className="text-xs text-muted-foreground mb-0.5">Price</span>
-                        <span className="text-lg font-bold text-primary">
+                        <span className="text-xs text-muted-foreground">ราคา</span>
+                        <span className="text-base font-bold text-primary">
                           {formatCurrency(product.price)}
                         </span>
                       </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-muted-foreground mb-1">Available / Total</span>
-                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md">
-                          <Box className={`h-3.5 w-3.5 ${product.stock_available > 0 ? 'text-success' : 'text-destructive'}`} />
-                          <span className={`text-sm font-bold ${product.stock_available > 0 ? 'text-foreground' : 'text-destructive'}`}>
-                            {product.stock_available}
-                          </span>
-                          <span className="text-muted-foreground text-xs">/</span>
-                          <span className="text-xs text-muted-foreground font-medium">
-                            {product.stock_total}
-                          </span>
-                        </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-muted-foreground block mb-0.5">คงเหลือ / ทั้งหมด</span>
+                        <Badge variant="outline" className={`gap-1 ${product.stock_available > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                          <Box className="h-3 w-3" />
+                          <span>{product.stock_available}</span>
+                          <span className="text-muted-foreground/50 mx-0.5">/</span>
+                          <span className="text-muted-foreground">{product.stock_total}</span>
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -404,38 +526,131 @@ export default function Products() {
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <Package className="h-16 w-16 text-muted-foreground/30 mb-4" />
-              <p className="text-muted-foreground">
-                {selectedCategory !== "All" ? `No products found in ${selectedCategory}` : "No products found yet"}
-              </p>
-              <Button className="mt-4" onClick={openAddDialog}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add your first product
+          <div className="flex flex-col items-center justify-center py-24 bg-muted/30 rounded-lg border border-dashed">
+            <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mb-4">
+              <Search className="h-10 w-10 text-muted-foreground/50" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">ไม่พบสินค้า</h3>
+            <p className="text-muted-foreground text-sm max-w-sm text-center mt-1">
+              ลองปรับคำค้นหา หรือตัวกรองหมวดหมู่ใหม่
+            </p>
+            {(searchQuery || selectedCategories.length > 0) && (
+              <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                ล้างการค้นหาและตัวกรอง
               </Button>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Dialog: Shared for Add and Edit */}
+      {/* --- View Details Dialog --- */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-3xl overflow-hidden p-0 gap-0">
+          {selectedProduct && (
+            <div className="flex flex-col md:flex-row h-full max-h-[85vh]">
+              {/* Image Side */}
+              <div className="w-full md:w-1/2 bg-muted/20 p-8 flex items-center justify-center border-b md:border-b-0 md:border-r">
+                {selectedProduct.image_url ? (
+                  <img 
+                    src={selectedProduct.image_url} 
+                    alt={selectedProduct.name} 
+                    className="max-w-full max-h-[300px] object-contain mix-blend-multiply"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center text-muted-foreground/30">
+                    <Package className="h-24 w-24 mb-4" />
+                    <p>ไม่มีรูปภาพ</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Details Side */}
+              <div className="w-full md:w-1/2 p-6 overflow-y-auto">
+                <div className="mb-6">
+                  <Badge variant="outline" className="mb-2 font-mono text-primary border-primary/20 bg-primary/5">
+                    SKU: {selectedProduct.p_id}
+                  </Badge>
+                  <h2 className="text-2xl font-bold mb-1">{selectedProduct.name}</h2>
+                  <p className="text-muted-foreground text-sm flex items-center gap-2">
+                    {selectedProduct.category} 
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                    {selectedProduct.brand || '-'}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-muted/30 p-3 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">ราคาต่อหน่วย</p>
+                      <p className="font-semibold text-lg">{formatCurrency(selectedProduct.price)}</p>
+                    </div>
+                    <div className="bg-muted/30 p-3 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">สถานะสต็อก</p>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-lg font-bold ${selectedProduct.stock_available > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {selectedProduct.stock_available}
+                        </span>
+                        <span className="text-sm text-muted-foreground">พร้อมใช้</span>
+                        <span className="text-xs text-muted-foreground mx-1">จากทั้งหมด</span>
+                        <span className="text-sm font-medium">{selectedProduct.stock_total}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-semibold mb-1">รุ่น / Model</h4>
+                      <p className="text-sm text-foreground/80">{selectedProduct.model || '-'}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold mb-1">รายละเอียด</h4>
+                      <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                        {selectedProduct.description || '-'}
+                      </p>
+                    </div>
+                    {selectedProduct.notes && (
+                      <div className="bg-yellow-50 p-3 rounded-md border border-yellow-100">
+                        <h4 className="text-xs font-semibold text-yellow-800 mb-1">หมายเหตุ</h4>
+                        <p className="text-sm text-yellow-800/80">{selectedProduct.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-4 border-t flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>ปิด</Button>
+                  <Button onClick={() => { setIsViewDialogOpen(false); openEditDialog(selectedProduct); }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    แก้ไขข้อมูล
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Add/Edit Form Dialog (Shared) --- */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="w-[95vw] max-w-[640px] sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Product & Stock" : "Add Product"}</DialogTitle>
+            <DialogTitle>{isEditing ? "แก้ไขข้อมูลสินค้า & สต็อก" : "เพิ่มสินค้าใหม่"}</DialogTitle>
+            <DialogDescription>
+              {isEditing ? "แก้ไขรายละเอียดสินค้าหรือเพิ่มจำนวนสต็อก" : "กรอกข้อมูลเพื่อสร้างสินค้าใหม่ SKU จะถูกสร้างอัตโนมัติตามหมวดหมู่"}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* ... Form Content เดิม (ไม่มีการเปลี่ยนแปลง Logic หลัก แต่ UI อยู่ใน Dialog เดิม) ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="category">หมวดหมู่</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => generateSku(value)}
                   disabled={isEditing}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder="เลือกหมวดหมู่" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
@@ -443,9 +658,6 @@ export default function Products() {
                     ))}
                   </SelectContent>
                 </Select>
-                {!isEditing && <p className="text-xs text-muted-foreground">
-                  เลือกหมวดหมู่เพื่อสร้างรหัส SKU (4 หลัก)
-                </p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="p_id">SKU (ID)</Label>
@@ -460,37 +672,34 @@ export default function Products() {
             </div>
 
             <div className="space-y-3">
-              <Label htmlFor="name">Product Name</Label>
+              <Label htmlFor="name">ชื่อสินค้า</Label>
               <Input
                 id="name"
-                placeholder="e.g. Laptop"
+                placeholder="ระบุชื่อสินค้า"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 required
               />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Button type="button" size="sm" variant="secondary" onClick={() => handleAddOption('name', formData.name)}>Add to quick list</Button>
-              </div>
               <OptionChips options={nameOptions} field="name" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="brand">Brand</Label>
+                  <Label htmlFor="brand">ยี่ห้อ</Label>
                   <Input
                     id="brand"
-                    placeholder="e.g. Dell"
+                    placeholder="ระบุยี่ห้อ"
                     value={formData.brand}
                     onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
                   />
                   <OptionChips options={brandOptions} field="brand" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="model">Model</Label>
+                  <Label htmlFor="model">รุ่น (Model)</Label>
                   <Input
                     id="model"
-                    placeholder="e.g. M15 Gen 2"
+                    placeholder="ระบุรุ่น"
                     value={formData.model}
                     onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
                   />
@@ -498,7 +707,7 @@ export default function Products() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price (THB)</Label>
+                <Label htmlFor="price">ราคา (บาท)</Label>
                 <Input
                   id="price"
                   type="number"
@@ -512,10 +721,10 @@ export default function Products() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">รายละเอียดเพิ่มเติม</Label>
               <Textarea
                 id="description"
-                placeholder="รายละเอียดเพิ่มเติม"
+                placeholder="รายละเอียดสเปก หรือข้อมูลจำเพาะ"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={3}
@@ -524,12 +733,12 @@ export default function Products() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="initial_quantity" className="flex justify-between">
-                  {isEditing ? "Total Quantity (Update to Add)" : "Initial Quantity"}
+                <Label htmlFor="initial_quantity" className="flex justify-between items-center">
+                  {isEditing ? "จำนวนทั้งหมด (เพิ่มตัวเลขเพื่อเติมสต็อก)" : "จำนวนเริ่มต้น"}
                   {isEditing && (
-                    <span className="text-xs text-primary font-normal">
-                      Current Total: {selectedProduct?.stock_total}
-                    </span>
+                    <Badge variant="outline" className="text-primary border-primary/20">
+                      ปัจจุบัน: {selectedProduct?.stock_total}
+                    </Badge>
                   )}
                 </Label>
                 <Input
@@ -539,19 +748,14 @@ export default function Products() {
                   placeholder="1"
                   value={formData.initial_quantity}
                   onChange={(e) => setFormData(prev => ({ ...prev, initial_quantity: e.target.value }))}
-                  className={isEditing ? "border-primary bg-primary/5" : ""}
+                  className={isEditing ? "border-primary bg-primary/5 font-medium" : ""}
                 />
-                {isEditing && (
-                  <p className="text-xs text-muted-foreground">
-                    * หากเพิ่มตัวเลข ระบบจะสร้าง Serial ใหม่ (เช่น {formData.p_id}-XXXX) ให้เท่ากับจำนวนที่เพิ่ม
-                  </p>
-                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="unit">Unit</Label>
+                <Label htmlFor="unit">หน่วยนับ</Label>
                 <Input
                   id="unit"
-                  placeholder="e.g. piece"
+                  placeholder="เช่น ชิ้น, เครื่อง, ชุด"
                   value={formData.unit}
                   onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
                 />
@@ -560,42 +764,56 @@ export default function Products() {
             </div>
 
             <div className="space-y-2">
-              <Label>Product Image</Label>
-              <div className="flex items-center gap-4">
+              <Label>รูปภาพสินค้า</Label>
+              <div className="flex items-center gap-4 p-4 border border-dashed rounded-lg bg-muted/10">
                 {formData.image_url ? (
-                  <img src={formData.image_url} alt="Preview" className="h-20 w-20 rounded-lg object-cover border" />
+                  <div className="relative group">
+                    <img src={formData.image_url} alt="Preview" className="h-20 w-20 rounded-lg object-cover border" />
+                    <button 
+                      type="button"
+                      className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex h-20 w-20 items-center justify-center rounded-lg border bg-muted">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
                   </div>
                 )}
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={isUploading}
-                  className="w-auto"
-                />
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={isUploading}
+                    className="w-full text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    รองรับ JPG, PNG (แนะนำสัดส่วน 4:3 หรือ 1:1)
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">หมายเหตุ (ภายใน)</Label>
               <Textarea
                 id="notes"
-                placeholder="Internal notes"
+                placeholder="บันทึกช่วยจำสำหรับแอดมิน"
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                rows={3}
+                rows={2}
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
+                ยกเลิก
               </Button>
               <Button type="submit" disabled={createProductHook.isPending || updateProductHook.isPending || isGeneratingSku}>
-                {(createProductHook.isPending || updateProductHook.isPending) ? 'Saving...' : 'Save Product'}
+                {(createProductHook.isPending || updateProductHook.isPending) ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
               </Button>
             </div>
           </form>

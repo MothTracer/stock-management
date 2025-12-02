@@ -1,73 +1,20 @@
-# Welcome to your Lovable project
+# ระบบจัดการทรัพย์สิน (Asset Management System)
 
-## Project info
+ระบบสำหรับจัดการ ตรวจนับ และติดตามสถานะทรัพย์สินภายในองค์กร พัฒนาด้วย React, TypeScript และ Supabase
 
-**URL**: https://lovable.dev/projects/fa7975e6-e11e-45e0-aa74-ac6e4da4b69b
+## ฟีเจอร์หลัก (Features)
 
-## How can I edit this code?
+- **Dashboard**: ดูภาพรวมมูลค่าทรัพย์สิน, จำนวนทั้งหมด, และสถานะต่างๆ (ถูกยืม, ส่งซ่อม)
+- **จัดการสินค้า (Products)**: เพิ่ม/ลบ/แก้ไข ข้อมูลทรัพย์สิน พร้อมระบบสร้าง SKU อัตโนมัติ
+- **ติดตามรายการ (Serials)**: จัดการสถานะรายชิ้น (พร้อมใช้, ถูกยืม, เสีย) และระบุตำแหน่งจัดเก็บ
+- **ระบบเบิก-คืน (Transactions)**: บันทึกประวัติการยืม-คืนอุปกรณ์ของพนักงาน
+- **จัดการพนักงาน (Employees)**: เก็บข้อมูลพนักงานและประวัติการครองครองทรัพย์สิน
+- **รายงาน (Reports)**: (กำลังพัฒนา)
 
-There are several ways of editing your application.
+## เทคโนโลยีที่ใช้ (Tech Stack)
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/fa7975e6-e11e-45e0-aa74-ac6e4da4b69b) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/fa7975e6-e11e-45e0-aa74-ac6e4da4b69b) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- **Frontend**: React, TypeScript, Vite
+- **UI Framework**: Tailwind CSS, shadcn/ui
+- **State Management**: TanStack Query
+- **Backend & Database**: Supabase
+- **Routing**: React Router
