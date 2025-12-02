@@ -20,6 +20,7 @@ export interface Transaction {
     products?: {
       name: string;
       p_id: string;
+      image_url: string | null;
     };
   };
 }
@@ -78,6 +79,31 @@ export function useRecentTransactions(limit: number = 5) {
       if (error) throw error;
       return data as Transaction[];
     },
+  });
+}
+
+export function useEmployeeTransactions(employeeId: string | null) {
+  return useQuery({
+    queryKey: ['transactions', 'employee', employeeId],
+    queryFn: async () => {
+      if (!employeeId) return [];
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          product_serials (
+            serial_code,
+            products (name, p_id, image_url)
+          )
+        `)
+        .eq('employee_id', employeeId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Transaction[];
+    },
+    enabled: !!employeeId, // ทำงานเมื่อมี employeeId เท่านั้น
   });
 }
 

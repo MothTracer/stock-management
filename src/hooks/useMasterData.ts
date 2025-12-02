@@ -143,11 +143,11 @@ export function useDeleteLocation() {
 export interface Employee {
   id: string;
   name: string;
-  nickname?: string | null; // เพิ่ม
-  gender?: string | null;   // เพิ่ม
-  image_url?: string | null; // เพิ่ม
-  email?: string | null;    // เพิ่ม
-  location?: string | null; // เพิ่ม
+  nickname?: string | null;
+  gender?: string | null;
+  image_url?: string | null;
+  email?: string | null;
+  location?: string | null;
   emp_code: string;
   department_id: string | null;
   tel: string | null;
@@ -167,6 +167,10 @@ export interface CreateEmployeeInput {
   emp_code: string;
   department_id?: string;
   tel?: string;
+}
+
+export interface UpdateEmployeeInput extends Partial<CreateEmployeeInput> {
+  id: string;
 }
 
 export function useEmployees() {
@@ -204,6 +208,32 @@ export function useCreateEmployee() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('เพิ่มพนักงานสำเร็จ');
+    },
+    onError: (error: Error) => {
+      toast.error(`เกิดข้อผิดพลาด: ${error.message}`);
+    },
+  });
+}
+
+export function useUpdateEmployee() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (input: UpdateEmployeeInput) => {
+      const { id, ...updates } = input;
+      const { data, error } = await supabase
+        .from('employees')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('แก้ไขข้อมูลพนักงานสำเร็จ');
     },
     onError: (error: Error) => {
       toast.error(`เกิดข้อผิดพลาด: ${error.message}`);
