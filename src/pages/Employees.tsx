@@ -1,40 +1,78 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Users, Camera, Mail, Phone, MapPin, Pencil, Eye, Package } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { 
+  Command, 
+  CommandEmpty, 
+  CommandGroup, 
+  CommandInput, 
+  CommandItem, 
+  CommandList, 
+  CommandSeparator 
+} from "@/components/ui/command";
+import { 
+  Plus, Trash2, Users, Camera, Mail, Phone, MapPin, 
+  Pencil, Eye, Package, Search, Filter, X, Check 
+} from "lucide-react";
 import { useEmployees, useCreateEmployee, useDeleteEmployee, useDepartments, useUpdateEmployee, Employee } from "@/hooks/useMasterData";
-import { useEmployeeTransactions } from "@/hooks/useTransactions"; // เพิ่ม Hook นี้
+import { useEmployeeTransactions } from "@/hooks/useTransactions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 export default function Employees() {
   const { data: employees, isLoading } = useEmployees();
   const { data: departments } = useDepartments();
   const createEmployee = useCreateEmployee();
-  const updateEmployee = useUpdateEmployee(); // เพิ่ม Hook Update
+  const updateEmployee = useUpdateEmployee();
   const deleteEmployee = useDeleteEmployee();
   
   // States
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false); // State สำหรับ View Dialog
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isEditing, setIsEditing] = useState(false); // เช็คว่ากำลัง Edit หรือ Add
+  const [isEditing, setIsEditing] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  
+  // Search & Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterDeptIds, setFilterDeptIds] = useState<string[]>([]); // เปลี่ยนเป็น Array เก็บหลาย ID
   
   // Transaction Data for View Mode
   const { data: empTransactions, isLoading: isTransLoading } = useEmployeeTransactions(selectedEmployeeId);
+
+  // Logic การกรองข้อมูล (Updated)
+  const filteredEmployees = employees?.filter(emp => {
+    // 1. กรองด้วยคำค้นหา (ชื่อ, ชื่อเล่น, รหัสพนักงาน)
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = 
+      emp.name.toLowerCase().includes(searchLower) ||
+      (emp.nickname && emp.nickname.toLowerCase().includes(searchLower)) ||
+      emp.emp_code.toLowerCase().includes(searchLower);
+
+    // 2. กรองด้วยแผนก (Multi-select)
+    // ถ้าไม่ได้เลือกแผนกเลย (length === 0) ให้ถือว่าเอาทั้งหมด
+    // ถ้าเลือกแผนก ให้เช็คว่า department_id ของพนักงาน อยู่ใน list ที่เลือกไหม
+    const matchesDept = 
+      filterDeptIds.length === 0 || 
+      (emp.department_id && filterDeptIds.includes(emp.department_id));
+
+    return matchesSearch && matchesDept;
+  });
 
   const [formData, setFormData] = useState({
     emp_code: "",
@@ -131,13 +169,11 @@ export default function Employees() {
 
     try {
       if (isEditing && selectedEmployeeId) {
-        // Update Logic
         await updateEmployee.mutateAsync({
           id: selectedEmployeeId,
           ...commonData
         });
       } else {
-        // Create Logic
         await createEmployee.mutateAsync(commonData);
       }
       setIsDialogOpen(false);
@@ -155,15 +191,136 @@ export default function Employees() {
     <MainLayout title="จัดการพนักงาน">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground">
-            จัดการข้อมูลพนักงาน รายละเอียดการติดต่อ และประวัติการเบิกอุปกรณ์
-          </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-muted-foreground">
+              จัดการข้อมูลพนักงาน รายละเอียดการติดต่อ และประวัติการเบิกอุปกรณ์
+            </p>
+          </div>
           <Button className="gap-2" onClick={handleOpenAdd}>
             <Plus className="h-4 w-4" />
             เพิ่มพนักงาน
           </Button>
         </div>
+
+        {/* Search & Filter Bar */}
+        <Card>
+          <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input 
+                placeholder="ค้นหาชื่อ, ชื่อเล่น, หรือรหัสพนักงาน..." 
+                className="pl-9"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Department Filter (Multi-select) */}
+            <div className="w-full sm:w-auto">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-[250px] justify-start border-dashed h-10">
+                    <Filter className="mr-2 h-4 w-4" />
+                    แผนก
+                    {filterDeptIds.length > 0 && (
+                      <>
+                        <Separator orientation="vertical" className="mx-2 h-4" />
+                        <Badge
+                          variant="secondary"
+                          className="rounded-sm px-1 font-normal lg:hidden"
+                        >
+                          {filterDeptIds.length}
+                        </Badge>
+                        <div className="hidden space-x-1 lg:flex">
+                          {filterDeptIds.length > 2 ? (
+                            <Badge
+                              variant="secondary"
+                              className="rounded-sm px-1 font-normal"
+                            >
+                              {filterDeptIds.length} รายการ
+                            </Badge>
+                          ) : (
+                            departments
+                              ?.filter((dept) => filterDeptIds.includes(dept.id))
+                              .map((dept) => (
+                                <Badge
+                                  variant="secondary"
+                                  key={dept.id}
+                                  className="rounded-sm px-1 font-normal"
+                                >
+                                  {dept.name}
+                                </Badge>
+                              ))
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[250px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="ค้นหาแผนก..." />
+                    <CommandList>
+                      <CommandEmpty>ไม่พบแผนก</CommandEmpty>
+                      <CommandGroup>
+                        {departments?.map((dept) => {
+                          const isSelected = filterDeptIds.includes(dept.id);
+                          return (
+                            <CommandItem
+                              key={dept.id}
+                              onSelect={() => {
+                                if (isSelected) {
+                                  setFilterDeptIds(filterDeptIds.filter((id) => id !== dept.id));
+                                } else {
+                                  setFilterDeptIds([...filterDeptIds, dept.id]);
+                                }
+                              }}
+                            >
+                              <div
+                                className={cn(
+                                  "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground"
+                                    : "opacity-50 [&_svg]:invisible"
+                                )}
+                              >
+                                <Check className={cn("h-4 w-4")} />
+                              </div>
+                              <span>{dept.name}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                      {filterDeptIds.length > 0 && (
+                        <>
+                          <CommandSeparator />
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => setFilterDeptIds([])}
+                              className="justify-center text-center cursor-pointer"
+                            >
+                              ล้างตัวกรอง
+                            </CommandItem>
+                          </CommandGroup>
+                        </>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Employee List Table */}
         <Card>
@@ -174,7 +331,7 @@ export default function Employees() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : employees && employees.length > 0 ? (
+            ) : filteredEmployees && filteredEmployees.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -187,7 +344,7 @@ export default function Employees() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {employees.map((emp) => (
+                  {filteredEmployees.map((emp) => (
                     <TableRow key={emp.id}>
                       <TableCell>
                         <Avatar className="h-10 w-10 border">
@@ -271,11 +428,21 @@ export default function Employees() {
             ) : (
               <div className="flex flex-col items-center justify-center py-16">
                 <Users className="h-16 w-16 text-muted-foreground/30 mb-4" />
-                <p className="text-muted-foreground">ยังไม่มีข้อมูลพนักงาน</p>
-                <Button className="mt-4" onClick={handleOpenAdd}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  เพิ่มพนักงานคนแรก
-                </Button>
+                <p className="text-muted-foreground">
+                  {searchTerm || filterDeptIds.length > 0
+                    ? "ไม่พบข้อมูลที่ค้นหา" 
+                    : "ยังไม่มีข้อมูลพนักงาน"}
+                </p>
+                {searchTerm || filterDeptIds.length > 0 ? (
+                   <Button variant="link" onClick={() => { setSearchTerm(""); setFilterDeptIds([]); }}>
+                     ล้างตัวกรอง
+                   </Button>
+                ) : (
+                   <Button className="mt-4" onClick={handleOpenAdd}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    เพิ่มพนักงานคนแรก
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
