@@ -2,9 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Update Interface ให้รองรับทั้ง employee และ department
 export interface Transaction {
   id: string;
-  employee_id: string;
+  employee_id: string | null;   
+  department_id: string | null; 
   serial_id: string;
   borrow_date: string;
   return_date: string | null;
@@ -14,7 +16,10 @@ export interface Transaction {
   employees?: {
     name: string;
     emp_code: string;
-  };
+  } | null;
+  departments?: {               
+    name: string;
+  } | null;
   product_serials?: {
     serial_code: string;
     products?: {
@@ -26,7 +31,8 @@ export interface Transaction {
 }
 
 export interface CreateTransactionInput {
-  employee_id: string;
+  employee_id?: string;   
+  department_id?: string; 
   serial_id: string;
   note?: string;
 }
@@ -40,6 +46,7 @@ export function useTransactions(status?: 'Active' | 'Completed') {
         .select(`
           *,
           employees (name, emp_code),
+          departments (name),
           product_serials (
             serial_code,
             products (name, p_id)
@@ -54,7 +61,8 @@ export function useTransactions(status?: 'Active' | 'Completed') {
       const { data, error } = await query;
       
       if (error) throw error;
-      return data as Transaction[];
+      // แก้ Error ตรงนี้ด้วยการ cast เป็น unknown ก่อน
+      return data as unknown as Transaction[];
     },
   });
 }
@@ -68,6 +76,7 @@ export function useRecentTransactions(limit: number = 5) {
         .select(`
           *,
           employees (name, emp_code),
+          departments (name),
           product_serials (
             serial_code,
             products (name, p_id)
@@ -77,7 +86,8 @@ export function useRecentTransactions(limit: number = 5) {
         .limit(limit);
       
       if (error) throw error;
-      return data as Transaction[];
+      // แก้ Error ตรงนี้
+      return data as unknown as Transaction[];
     },
   });
 }
@@ -101,9 +111,10 @@ export function useEmployeeTransactions(employeeId: string | null) {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as Transaction[];
+      // แก้ Error ตรงนี้
+      return data as unknown as Transaction[];
     },
-    enabled: !!employeeId, // ทำงานเมื่อมี employeeId เท่านั้น
+    enabled: !!employeeId, 
   });
 }
 
@@ -112,11 +123,12 @@ export function useCreateTransaction() {
   
   return useMutation({
     mutationFn: async (input: CreateTransactionInput) => {
-      // Create transaction
+      // Supabase จะใส่ NULL ให้เองถ้าเราส่งค่า undefined หรือ empty string ไปใน field ที่เป็น nullable
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          employee_id: input.employee_id,
+          employee_id: input.employee_id || null,     
+          department_id: input.department_id || null, 
           serial_id: input.serial_id,
           note: input.note,
           status: 'Active',
@@ -129,7 +141,7 @@ export function useCreateTransaction() {
       // Update serial status to Borrowed
       const { error: serialError } = await supabase
         .from('product_serials')
-        .update({ status: 'Borrowed' })
+        .update({ status: 'Borrowed' }) 
         .eq('id', input.serial_id);
       
       if (serialError) throw serialError;
@@ -143,6 +155,7 @@ export function useCreateTransaction() {
       toast.success('บันทึกการเบิกสำเร็จ');
     },
     onError: (error: Error) => {
+      console.error(error); 
       toast.error(`เกิดข้อผิดพลาด: ${error.message}`);
     },
   });
@@ -153,7 +166,6 @@ export function useReturnTransaction() {
   
   return useMutation({
     mutationFn: async ({ transactionId, serialId }: { transactionId: string; serialId: string }) => {
-      // Update transaction
       const { error: transactionError } = await supabase
         .from('transactions')
         .update({
@@ -164,10 +176,9 @@ export function useReturnTransaction() {
       
       if (transactionError) throw transactionError;
       
-      // Update serial status to Ready
       const { error: serialError } = await supabase
         .from('product_serials')
-        .update({ status: 'Ready' })
+        .update({ status: 'Ready' }) 
         .eq('id', serialId);
       
       if (serialError) throw serialError;

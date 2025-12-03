@@ -8,9 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"; // Import RadioGroup
-import { SearchableSelect } from "@/components/ui/searchable-select"; // Import Component ใหม่
-import { ArrowLeftRight, RotateCcw } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"; 
+import { SearchableSelect } from "@/components/ui/searchable-select"; 
+import { ArrowLeftRight, RotateCcw, Building2, User } from "lucide-react";
 import { 
   useTransactions, 
   useCreateTransaction, 
@@ -26,7 +26,7 @@ export default function Transactions() {
   const { data: completedTransactions, isLoading: completedLoading } = useTransactions('Completed');
   const { data: availableSerials } = useAvailableSerials();
   const { data: employees } = useEmployees();
-  const { data: departments } = useDepartments(); // ดึงข้อมูลแผนกมาด้วย
+  const { data: departments } = useDepartments(); 
   
   const createTransaction = useCreateTransaction();
   const returnTransaction = useReturnTransaction();
@@ -35,7 +35,7 @@ export default function Transactions() {
   const [borrowerType, setBorrowerType] = useState<'employee' | 'department'>('employee');
 
   const [borrowForm, setBorrowForm] = useState({
-    borrower_id: '', // ใช้ตัวแปรกลางๆ แทน employee_id
+    borrower_id: '', // ใช้เก็บทั้ง employee_id หรือ department_id แล้วแต่โหมด
     serial_id: '',
     note: '',
   });
@@ -43,21 +43,28 @@ export default function Transactions() {
   const handleBorrow = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // NOTE: ระบบ Database ปัจจุบัน transactions ผูกกับ employee_id
-    // หากเลือกเป็นแผนก คุณอาจจะต้องมี Logic แปลง Department ID เป็น Employee ID ตัวแทน หรือแก้ DB
-    // ในที่นี้จะส่งค่าไปเป็น employee_id ตามปกติไปก่อน
-    
-    await createTransaction.mutateAsync({
-      employee_id: borrowForm.borrower_id, 
+    // เตรียม payload ตามประเภทผู้ยืม
+    const payload: any = {
       serial_id: borrowForm.serial_id,
       note: borrowForm.note || undefined,
-    });
+    };
 
+    if (borrowerType === 'employee') {
+      payload.employee_id = borrowForm.borrower_id;
+    } else {
+      payload.department_id = borrowForm.borrower_id;
+    }
+    
+    await createTransaction.mutateAsync(payload);
+
+    // Reset Form
     setBorrowForm({ borrower_id: '', serial_id: '', note: '' });
   };
 
   const handleReturn = async (transactionId: string, serialId: string) => {
-    await returnTransaction.mutateAsync({ transactionId, serialId });
+    if(confirm('ยืนยันการคืนอุปกรณ์?')) {
+      await returnTransaction.mutateAsync({ transactionId, serialId });
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -72,7 +79,7 @@ export default function Transactions() {
 
   const departmentOptions = departments?.map(dept => ({
     value: dept.id,
-    label: dept.name // หมายเหตุ: ถ้าจะใช้จริงต้องแก้ DB ให้ Transaction รองรับ Department ID
+    label: dept.name 
   })) || [];
 
   const serialOptions = availableSerials?.map(serial => ({
@@ -113,11 +120,15 @@ export default function Transactions() {
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="employee" id="r-employee" />
-                        <Label htmlFor="r-employee" className="cursor-pointer">พนักงานรายบุคคล</Label>
+                        <Label htmlFor="r-employee" className="cursor-pointer flex items-center gap-1">
+                          <User className="h-4 w-4" /> พนักงานรายบุคคล
+                        </Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="department" id="r-department" />
-                        <Label htmlFor="r-department" className="cursor-pointer">เบิกเข้าแผนก</Label>
+                        <Label htmlFor="r-department" className="cursor-pointer flex items-center gap-1">
+                          <Building2 className="h-4 w-4" /> เบิกเข้าแผนก
+                        </Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -132,11 +143,6 @@ export default function Transactions() {
                       placeholder={borrowerType === 'employee' ? "ค้นหาพนักงาน..." : "ค้นหาแผนก..."}
                       emptyMessage="ไม่พบข้อมูล"
                     />
-                    {borrowerType === 'department' && (
-                      <p className="text-xs text-yellow-600">
-                        * หมายเหตุ: ระบบปัจจุบันจำเป็นต้องระบุตัวแทนรับของ หรือแก้ฐานข้อมูลให้รองรับแผนก
-                      </p>
-                    )}
                   </div>
 
                   {/* เลือกรายการ (ค้นหาได้) */}
@@ -174,10 +180,9 @@ export default function Transactions() {
             </Card>
           </TabsContent>
 
-          {/* ... (Tab Active และ History ใช้ Code เดิมได้เลยครับ) ... */}
+          {/* Active Tab */}
           <TabsContent value="active">
-             {/* Copy เนื้อหาเดิมจากไฟล์ Transactions.tsx ส่วน Active Tab มาวางที่นี่ */}
-             <Card>
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg">รายการที่กำลังถูกยืม</CardTitle>
               </CardHeader>
@@ -194,7 +199,7 @@ export default function Transactions() {
                       <TableRow>
                         <TableHead>รหัสซีเรียล</TableHead>
                         <TableHead>ชื่อสินค้า</TableHead>
-                        <TableHead>ผู้ยืม</TableHead>
+                        <TableHead>ผู้ยืม / แผนก</TableHead>
                         <TableHead>วันที่ยืม</TableHead>
                         <TableHead>หมายเหตุ</TableHead>
                         <TableHead className="text-right">จัดการ</TableHead>
@@ -208,12 +213,27 @@ export default function Transactions() {
                           </TableCell>
                           <TableCell>{tx.product_serials?.products?.name}</TableCell>
                           <TableCell>
-                            <div>
-                              <div className="font-medium">{tx.employees?.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {tx.employees?.emp_code}
+                            {tx.employees ? (
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <div className="font-medium">{tx.employees.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {tx.employees.emp_code}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
+                            ) : tx.departments ? (
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4 text-blue-500" />
+                                <div>
+                                  <div className="font-medium text-blue-700">{tx.departments.name}</div>
+                                  <div className="text-xs text-muted-foreground">แผนก</div>
+                                </div>
+                              </div>
+                            ) : (
+                              <span>-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {formatDate(tx.borrow_date)}
@@ -247,9 +267,9 @@ export default function Transactions() {
             </Card>
           </TabsContent>
 
+          {/* History Tab */}
           <TabsContent value="history">
-             {/* Copy เนื้อหาเดิมจากไฟล์ Transactions.tsx ส่วน History Tab มาวางที่นี่ */}
-             <Card>
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg">ประวัติการเบิก-คืน</CardTitle>
               </CardHeader>
@@ -266,7 +286,7 @@ export default function Transactions() {
                       <TableRow>
                         <TableHead>รหัสซีเรียล</TableHead>
                         <TableHead>ชื่อสินค้า</TableHead>
-                        <TableHead>ผู้ยืม</TableHead>
+                        <TableHead>ผู้ยืม / แผนก</TableHead>
                         <TableHead>วันที่ยืม</TableHead>
                         <TableHead>วันที่คืน</TableHead>
                         <TableHead>สถานะ</TableHead>
@@ -280,12 +300,23 @@ export default function Transactions() {
                           </TableCell>
                           <TableCell>{tx.product_serials?.products?.name}</TableCell>
                           <TableCell>
-                            <div>
-                              <div className="font-medium">{tx.employees?.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {tx.employees?.emp_code}
+                            {tx.employees ? (
+                              <div className="flex items-center gap-2">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <div>
+                                  <div className="font-medium text-sm">{tx.employees.name}</div>
+                                </div>
                               </div>
-                            </div>
+                            ) : tx.departments ? (
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-3 w-3 text-blue-500" />
+                                <div>
+                                  <div className="font-medium text-sm text-blue-700">{tx.departments.name}</div>
+                                </div>
+                              </div>
+                            ) : (
+                              <span>-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {formatDate(tx.borrow_date)}
