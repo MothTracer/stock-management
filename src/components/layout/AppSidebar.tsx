@@ -40,11 +40,8 @@ export function AppSidebar() {
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        toast.error("ออกจากระบบไม่สำเร็จ");
-      } else {
-        navigate("/login");
-      }
+      if (error) throw error;
+      navigate("/login");
     } catch (error) {
       toast.error("เกิดข้อผิดพลาด");
     }
